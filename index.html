@@ -1,0 +1,458 @@
+<!doctype html>
+<html lang="nl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f4e5f">
+<title>Proef de buurt</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Inter:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --bg: #faf6ef;
+    --card: #ffffff;
+    --ink: #1d2a30;
+    --muted: #5d6b71;
+    --line: #e6dfd3;
+    --brand: #1f4e5f;
+    --brand-ink: #ffffff;
+    --accent: #e0703a;
+    --food: #e0703a;
+    --hist: #2f7d8c;
+    --ok: #2e8b57;
+    --bad: #c0392b;
+    --radius: 16px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.5 Inter, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { font-family: Fraunces, Georgia, serif; line-height: 1.15; margin: 0; }
+  button { font: inherit; cursor: pointer; }
+  .screen { display: none; min-height: 100dvh; }
+  .screen.active { display: flex; flex-direction: column; }
+
+  /* Start */
+  #start { justify-content: center; padding: 32px 20px; max-width: 480px; margin: 0 auto; gap: 20px; }
+  #start .badge { font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent); font-weight: 600; }
+  #start h1 { font-size: 40px; color: var(--brand); }
+  #start p { color: var(--muted); margin: 0; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  .field label { font-weight: 600; font-size: 14px; }
+  input[type=text], input[type=number], textarea {
+    font: inherit; padding: 14px; border: 1.5px solid var(--line); border-radius: 12px; background: var(--card); color: var(--ink); width: 100%;
+  }
+  input:focus, textarea:focus { outline: none; border-color: var(--brand); }
+  .btn {
+    border: 0; border-radius: 999px; padding: 14px 20px; background: var(--brand); color: var(--brand-ink);
+    font-weight: 600; width: 100%;
+  }
+  .btn.secondary { background: transparent; color: var(--brand); border: 1.5px solid var(--brand); }
+  .btn.accent { background: var(--accent); }
+  .btn:disabled { opacity: .45; cursor: default; }
+  .how { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; font-size: 14px; }
+  .how ol { margin: 6px 0 0; padding-left: 20px; }
+
+  /* Top bar */
+  .topbar {
+    position: sticky; top: 0; z-index: 500; background: var(--brand); color: var(--brand-ink);
+    padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top));
+    display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  }
+  .topbar .team { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .topbar .stats { display: flex; gap: 8px; font-size: 14px; flex-shrink: 0; }
+  .pill { background: rgba(255,255,255,.16); border-radius: 999px; padding: 4px 10px; white-space: nowrap; }
+
+  /* Map screen */
+  #map { height: 42dvh; min-height: 240px; z-index: 1; }
+  .list { padding: 16px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 96px; }
+  .progress { height: 8px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .progress > div { height: 100%; background: var(--accent); transition: width .3s; }
+  .progress-label { font-size: 14px; color: var(--muted); display: flex; justify-content: space-between; }
+  .stop {
+    display: flex; gap: 12px; align-items: center; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--radius); padding: 12px 14px; text-align: left; width: 100%; color: inherit;
+  }
+  .stop .num {
+    width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+    font-weight: 700; color: #fff; font-size: 15px;
+  }
+  .stop .num.food { background: var(--food); }
+  .stop .num.geschiedenis { background: var(--hist); }
+  .stop .num.done { background: var(--ok); }
+  .stop .info { flex: 1; min-width: 0; }
+  .stop .title { font-weight: 600; }
+  .stop .meta { font-size: 13px; color: var(--muted); }
+  .chev { color: var(--muted); }
+  .legend { display: flex; gap: 14px; font-size: 13px; color: var(--muted); }
+  .legend span::before { content: ""; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 6px; vertical-align: -1px; background: var(--c); }
+
+  .tabbar {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 600; background: var(--card); border-top: 1px solid var(--line);
+    display: flex; padding-bottom: env(safe-area-inset-bottom);
+  }
+  .tabbar[hidden] { display: none; }
+  .tabbar button { flex: 1; background: none; border: 0; padding: 12px 0 14px; color: var(--muted); font-size: 13px; font-weight: 500; }
+  .tabbar button.on { color: var(--brand); font-weight: 600; }
+  .tabbar .ico { display: block; font-size: 20px; line-height: 1.2; }
+
+  .leaflet-marker-icon.pin {
+    border-radius: 50%; color: #fff; font: 700 13px Inter, sans-serif; display: grid; place-items: center;
+    border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  }
+
+  /* Stop sheet */
+  #stop { background: var(--bg); }
+  .back { background: none; border: 0; color: var(--brand-ink); font-weight: 600; padding: 0; }
+  .stop-head { padding: 20px 16px 4px; display: flex; flex-direction: column; gap: 8px; }
+  .tag { align-self: flex-start; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #fff; padding: 3px 10px; border-radius: 999px; }
+  .tag.food { background: var(--food); }
+  .tag.geschiedenis { background: var(--hist); }
+  .story { margin: 0 16px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .here { margin: 12px 16px 0; display: flex; flex-direction: column; gap: 8px; }
+  .here .dist { font-size: 13px; color: var(--muted); text-align: center; }
+  .tasks { padding: 16px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 48px; }
+  .task { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+  .task.locked { opacity: .5; pointer-events: none; }
+  .task-top { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .05em; }
+  .task-top .pts { color: var(--accent); }
+  .task .q { font-weight: 600; }
+  .opts { display: flex; flex-direction: column; gap: 8px; }
+  .opt { text-align: left; background: var(--bg); border: 1.5px solid var(--line); border-radius: 12px; padding: 12px 14px; color: inherit; }
+  .opt.right { border-color: var(--ok); background: #e8f5ee; }
+  .opt.wrong { border-color: var(--bad); background: #fbeceb; }
+  .done-msg { font-size: 14px; font-weight: 600; color: var(--ok); }
+  .photo-prev { width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; }
+  .file-btn { position: relative; overflow: hidden; }
+  .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row input { flex: 1; }
+
+  /* Scoreboard */
+  .board { padding: 16px; display: flex; flex-direction: column; gap: 10px; padding-bottom: 96px; }
+  .board h2 { font-size: 26px; color: var(--brand); }
+  .board .note { font-size: 13px; color: var(--muted); }
+  .rank { display: flex; align-items: center; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  .rank.me { border: 2px solid var(--accent); }
+  .rank .pos { font-family: Fraunces, serif; font-size: 22px; width: 28px; text-align: center; color: var(--brand); }
+  .rank .nm { flex: 1; font-weight: 600; }
+  .rank .sc { font-weight: 700; }
+  .gallery { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+  .gallery img { width: 100%; aspect-ratio: 1; object-fit: cover; border-radius: 8px; }
+  .muted { color: var(--muted); font-size: 14px; }
+  .toast {
+    position: fixed; left: 50%; bottom: 90px; transform: translateX(-50%) translateY(20px); opacity: 0;
+    background: var(--ink); color: #fff; padding: 10px 18px; border-radius: 999px; font-weight: 600; z-index: 1000;
+    transition: all .25s; pointer-events: none; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+</style>
+</head>
+<body>
+
+<!-- START -->
+<section id="start" class="screen active">
+  <div class="badge">Kunst &amp; Kook · speurtocht</div>
+  <h1 id="app-title">Proef de buurt</h1>
+  <p id="app-sub"></p>
+  <div class="how">
+    <strong>Zo werkt het</strong>
+    <ol>
+      <li>Loop de route langs geschiedenis en toko's.</li>
+      <li>Op elke stop: tik op <em>"We zijn er"</em> en doe de opdrachten.</li>
+      <li>Koop onderweg ingrediënten van jullie budget.</li>
+      <li>Terug in de studio koken we ermee – en wordt de winnaar bekend!</li>
+    </ol>
+  </div>
+  <div class="field">
+    <label for="teamname">Teamnaam</label>
+    <input id="teamname" type="text" maxlength="30" placeholder="Bijv. De Tsarenkoks" autocomplete="off">
+  </div>
+  <button class="btn" id="go" disabled>Start de speurtocht</button>
+</section>
+
+<!-- MAP -->
+<section id="main" class="screen">
+  <div class="topbar">
+    <div class="team" id="tb-team"></div>
+    <div class="stats"><span class="pill" id="tb-points">0 pt</span><span class="pill" id="tb-budget">€10</span></div>
+  </div>
+  <div id="map"></div>
+  <div class="list">
+    <div class="progress-label"><span id="prog-text"></span><span class="legend"><span style="--c:var(--hist)">Geschiedenis</span><span style="--c:var(--food)">Food</span></span></div>
+    <div class="progress"><div id="prog-bar"></div></div>
+    <div id="stops"></div>
+  </div>
+</section>
+
+<!-- STOP -->
+<section id="stop" class="screen">
+  <div class="topbar">
+    <button class="back" id="back">‹ Kaart</button>
+    <div class="stats"><span class="pill" id="st-points">0 pt</span><span class="pill" id="st-budget">€10</span></div>
+  </div>
+  <div class="stop-head">
+    <span class="tag" id="st-tag"></span>
+    <h2 id="st-name"></h2>
+  </div>
+  <div class="story" id="st-story"></div>
+  <div class="here" id="st-here"></div>
+  <div class="tasks" id="st-tasks"></div>
+</section>
+
+<!-- SCOREBOARD -->
+<section id="score" class="screen">
+  <div class="topbar">
+    <div class="team">Scorebord</div>
+    <div class="stats"><span class="pill" id="sc-points">0 pt</span></div>
+  </div>
+  <div class="board" id="board"></div>
+</section>
+
+<nav class="tabbar" id="tabbar" hidden>
+  <button data-tab="main" class="on"><span class="ico">🗺️</span>Route</button>
+  <button data-tab="score"><span class="ico">🏆</span>Scorebord</button>
+</nav>
+
+<div class="toast" id="toast"></div>
+
+<script src="route.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script>
+(() => {
+  const R = window.ROUTE;
+  const KEY = "proef-de-buurt-v1";
+  const $ = (s) => document.querySelector(s);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+  // ---- state ----
+  const fresh = () => ({ team: "", arrived: {}, done: {}, answers: {}, spent: 0 });
+  let S = fresh();
+  try { const raw = localStorage.getItem(KEY); if (raw) S = Object.assign(fresh(), JSON.parse(raw)); } catch (e) {}
+  const save = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} };
+  const photos = {}; // taskKey -> object URL (alleen deze sessie)
+
+  const taskKey = (stopId, i) => stopId + ":" + i;
+  const points = () => R.stops.reduce((sum, s) => sum + s.opdrachten.reduce((a, t, i) => a + (S.done[taskKey(s.id, i)] || 0), 0), 0);
+  const stopDone = (s) => s.opdrachten.every((t, i) => taskKey(s.id, i) in S.done);
+  const budgetLeft = () => Math.max(0, R.budgetPerTeam - S.spent);
+  const euro = (n) => "€" + (Math.round(n * 100) / 100).toFixed(2).replace(".", ",").replace(",00", "");
+
+  function toast(msg) {
+    const t = $("#toast"); t.textContent = msg; t.classList.add("show");
+    clearTimeout(toast._t); toast._t = setTimeout(() => t.classList.remove("show"), 1800);
+  }
+
+  function refreshStats() {
+    const p = points() + " pt", b = euro(budgetLeft());
+    $("#tb-points").textContent = p; $("#st-points").textContent = p; $("#sc-points").textContent = p;
+    $("#tb-budget").textContent = b; $("#st-budget").textContent = b;
+    $("#tb-team").textContent = S.team;
+  }
+
+  // ---- screens ----
+  function show(id) {
+    document.querySelectorAll(".screen").forEach((el) => el.classList.toggle("active", el.id === id));
+    $("#tabbar").hidden = id === "start" || id === "stop";
+    document.querySelectorAll(".tabbar button").forEach((b) => b.classList.toggle("on", b.dataset.tab === id));
+    window.scrollTo(0, 0);
+    if (id === "main") {
+      renderList();
+      setTimeout(() => {
+        if (!map) return;
+        map.invalidateSize();
+        if (!map._fitted) { map.fitBounds(routeBounds, { padding: [24, 24] }); map._fitted = true; }
+      }, 50);
+    }
+    if (id === "score") renderBoard();
+    refreshStats();
+  }
+
+  // ---- start ----
+  $("#app-title").textContent = R.naam;
+  $("#app-sub").textContent = R.ondertitel;
+  const nameInput = $("#teamname");
+  nameInput.addEventListener("input", () => { $("#go").disabled = !nameInput.value.trim(); });
+  $("#go").addEventListener("click", () => { S.team = nameInput.value.trim(); save(); initMap(); show("main"); });
+
+  // ---- map ----
+  let map, markers = {}, routeBounds = [];
+  function pinIcon(s, n) {
+    const color = stopDone(s) ? "var(--ok)" : s.thema === "food" ? "var(--food)" : "var(--hist)";
+    return L.divIcon({ className: "pin", html: `<div style="width:100%;height:100%;border-radius:50%;background:${color};display:grid;place-items:center">${stopDone(s) ? "✓" : n}</div>`, iconSize: [30, 30], iconAnchor: [15, 15] });
+  }
+  function initMap() {
+    if (map || typeof L === "undefined") return;
+    map = L.map("map", { zoomControl: false, attributionControl: true });
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+    const pts = [[R.start.lat, R.start.lng], ...R.stops.map((s) => [s.lat, s.lng]), [R.start.lat, R.start.lng]];
+    L.polyline(pts, { color: "#1f4e5f", weight: 3, opacity: .6, dashArray: "6 8" }).addTo(map);
+    L.marker([R.start.lat, R.start.lng], {
+      icon: L.divIcon({ className: "pin", html: '<div style="width:100%;height:100%;border-radius:50%;background:#1d2a30;display:grid;place-items:center">🍳</div>', iconSize: [34, 34], iconAnchor: [17, 17] }),
+    }).addTo(map).bindPopup(`<b>Start &amp; finish</b><br>${esc(R.start.naam)}<br>${esc(R.start.adres)}`);
+    R.stops.forEach((s, i) => {
+      markers[s.id] = L.marker([s.lat, s.lng], { icon: pinIcon(s, i + 1) }).addTo(map).on("click", () => openStop(s.id));
+    });
+    routeBounds = pts;
+  }
+  function refreshMarkers() { R.stops.forEach((s, i) => markers[s.id] && markers[s.id].setIcon(pinIcon(s, i + 1))); }
+
+  function renderList() {
+    const doneCount = R.stops.filter(stopDone).length;
+    $("#prog-text").textContent = `${doneCount} van ${R.stops.length} stops klaar`;
+    $("#prog-bar").style.width = (doneCount / R.stops.length * 100) + "%";
+    $("#stops").innerHTML = R.stops.map((s, i) => {
+      const d = stopDone(s);
+      const n = s.opdrachten.filter((t, j) => taskKey(s.id, j) in S.done).length;
+      return `<button class="stop" data-id="${s.id}" style="margin-bottom:10px">
+        <span class="num ${d ? "done" : s.thema}">${d ? "✓" : i + 1}</span>
+        <span class="info"><div class="title">${esc(s.naam)}</div><div class="meta">${s.thema === "food" ? "Food" : "Geschiedenis"} · ${n}/${s.opdrachten.length} opdrachten</div></span>
+        <span class="chev">›</span></button>`;
+    }).join("") + `<button class="stop" disabled style="opacity:.8">
+        <span class="num" style="background:var(--ink)">🍳</span>
+        <span class="info"><div class="title">Finish: ${esc(R.start.naam)}</div><div class="meta">Samen koken met wat jullie gekocht hebben</div></span></button>`;
+    document.querySelectorAll("#stops .stop[data-id]").forEach((b) => b.addEventListener("click", () => openStop(b.dataset.id)));
+    refreshMarkers();
+  }
+
+  // ---- distance (optioneel, als de telefoon locatie geeft) ----
+  let myPos = null;
+  if ("geolocation" in navigator) {
+    try {
+      navigator.geolocation.watchPosition((p) => { myPos = [p.coords.latitude, p.coords.longitude]; updateDist(); }, () => {}, { enableHighAccuracy: true, maximumAge: 10000 });
+    } catch (e) {}
+  }
+  function meters(a, b) {
+    const r = 6371000, t = Math.PI / 180;
+    const dLat = (b[0] - a[0]) * t, dLng = (b[1] - a[1]) * t;
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(a[0] * t) * Math.cos(b[0] * t) * Math.sin(dLng / 2) ** 2;
+    return Math.round(2 * r * Math.asin(Math.sqrt(h)));
+  }
+  let current = null;
+  function updateDist() {
+    const el = document.querySelector("#st-here .dist");
+    if (!el || !current) return;
+    el.textContent = myPos ? `Jullie zijn ongeveer ${meters(myPos, [current.lat, current.lng])} meter van deze stop.` : "";
+  }
+
+  // ---- stop detail ----
+  function openStop(id) {
+    current = R.stops.find((s) => s.id === id);
+    const s = current;
+    $("#st-tag").className = "tag " + s.thema;
+    $("#st-tag").textContent = s.thema === "food" ? "Food" : "Geschiedenis";
+    $("#st-name").textContent = s.naam;
+    $("#st-story").textContent = s.verhaal;
+    renderStop();
+    show("stop");
+  }
+
+  function renderStop() {
+    const s = current, here = !!S.arrived[s.id];
+    $("#st-here").innerHTML = here
+      ? `<div class="done-msg" style="text-align:center">📍 Jullie zijn hier – de opdrachten zijn open!</div>`
+      : `<button class="btn accent" id="arrive">📍 We zijn er!</button><div class="dist"></div>`;
+    if (!here) $("#arrive").addEventListener("click", () => { S.arrived[s.id] = true; save(); toast("Opdrachten ontgrendeld"); renderStop(); });
+    updateDist();
+
+    $("#st-tasks").innerHTML = s.opdrachten.map((t, i) => taskHTML(s, t, i, here)).join("");
+    bindTasks(s);
+  }
+
+  const label = { quiz: "Quiz", foto: "Foto-opdracht", vraag: "Vraag het de buurt", koop: "Koop-opdracht" };
+
+  function taskHTML(s, t, i, here) {
+    const k = taskKey(s.id, i), done = k in S.done, ans = S.answers[k];
+    let body = "";
+    if (t.type === "quiz") {
+      body = `<div class="opts">${t.opties.map((o, j) => {
+        let cls = "";
+        if (done) cls = j === t.antwoord ? "right" : (ans === j ? "wrong" : "");
+        return `<button class="opt ${cls}" data-k="${k}" data-j="${j}" ${done ? "disabled" : ""}>${esc(o)}</button>`;
+      }).join("")}</div>`;
+      if (done) body += `<div class="done-msg">${S.done[k] ? "Goed! +" + S.done[k] + " punten" : "Helaas, geen punten"}</div>`;
+    } else if (t.type === "foto" || t.type === "koop") {
+      const img = photos[k] ? `<img class="photo-prev" src="${photos[k]}" alt="">` : "";
+      if (done) {
+        body = img + `<div class="done-msg">Ingeleverd! +${S.done[k]} punten${t.type === "koop" && ans ? " · uitgegeven: " + euro(ans) : ""}</div>`;
+      } else {
+        body = img + `<label class="btn secondary file-btn">📷 ${photos[k] ? "Andere foto" : "Maak een foto"}<input type="file" accept="image/*" capture="environment" data-photo="${k}"></label>`;
+        if (t.type === "koop") body += `<div class="field"><label>Hoeveel hebben jullie uitgegeven? (nog ${euro(budgetLeft())} over)</label><input type="number" inputmode="decimal" min="0" step="0.05" placeholder="0,00" data-spent="${k}"></div>`;
+        body += `<button class="btn" data-submit="${k}" ${photos[k] ? "" : "disabled"}>Inleveren</button>`;
+      }
+    } else if (t.type === "vraag") {
+      if (done) body = `<div class="muted">“${esc(ans || "")}”</div><div class="done-msg">Ingeleverd! +${S.done[k]} punten</div>`;
+      else body = `<textarea rows="3" data-text="${k}" placeholder="Jullie antwoord…"></textarea><button class="btn" data-submit="${k}" disabled>Inleveren</button>`;
+    }
+    return `<div class="task ${here ? "" : "locked"}">
+      <div class="task-top"><span>${label[t.type]}</span><span class="pts">${t.punten} pt</span></div>
+      <div class="q">${esc(t.vraag)}</div>${body}</div>`;
+  }
+
+  function bindTasks(s) {
+    const root = $("#st-tasks");
+    const findTask = (k) => s.opdrachten[+k.split(":")[1]];
+    root.querySelectorAll(".opt").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.k, j = +b.dataset.j, t = findTask(k);
+      S.answers[k] = j; S.done[k] = j === t.antwoord ? t.punten : 0; save();
+      toast(S.done[k] ? `Goed! +${t.punten}` : "Helaas!"); afterChange();
+    }));
+    root.querySelectorAll("[data-photo]").forEach((inp) => inp.addEventListener("change", () => {
+      const f = inp.files && inp.files[0]; if (!f) return;
+      photos[inp.dataset.photo] = URL.createObjectURL(f); renderStop();
+    }));
+    root.querySelectorAll("[data-text]").forEach((ta) => ta.addEventListener("input", () => {
+      root.querySelector(`[data-submit="${ta.dataset.text}"]`).disabled = !ta.value.trim();
+    }));
+    root.querySelectorAll("[data-submit]").forEach((b) => b.addEventListener("click", () => {
+      const k = b.dataset.submit, t = findTask(k);
+      if (t.type === "vraag") S.answers[k] = root.querySelector(`[data-text="${k}"]`).value.trim();
+      if (t.type === "koop") {
+        const v = parseFloat((root.querySelector(`[data-spent="${k}"]`).value || "0").replace(",", "."));
+        const spent = isFinite(v) && v > 0 ? v : 0;
+        if (spent > budgetLeft() + 0.001) { toast("Dat past niet meer in jullie budget"); return; }
+        S.answers[k] = spent; S.spent += spent;
+      }
+      S.done[k] = t.punten; save(); toast(`+${t.punten} punten`); afterChange();
+    }));
+  }
+
+  function afterChange() {
+    renderStop(); refreshStats();
+    if (stopDone(current)) setTimeout(() => toast("Stop afgerond! 🎉"), 1900);
+  }
+
+  // ---- scoreboard ----
+  // Voorbeeldteams: in de echte versie komen deze live van de andere telefoons.
+  const demoTeams = [{ team: "Team Molenwiek", p: 95 }, { team: "De Badhuisbende", p: 70 }, { team: "Javajagers", p: 120 }];
+  function renderBoard() {
+    const rows = [...demoTeams, { team: S.team || "Jullie team", p: points(), me: true }].sort((a, b) => b.p - a.p);
+    const imgs = Object.values(photos);
+    $("#board").innerHTML = `<h2>Wie wint er?</h2>
+      <div class="note">De andere teams zijn voorbeelden. In de echte app zie je hier live de scores van alle teams, ook op een scherm in de studio.</div>
+      ${rows.map((r, i) => `<div class="rank ${r.me ? "me" : ""}"><span class="pos">${i + 1}</span><span class="nm">${esc(r.team)}${r.me ? " (jullie)" : ""}</span><span class="sc">${r.p} pt</span></div>`).join("")}
+      <h3 style="margin-top:12px">Jullie foto's</h3>
+      ${imgs.length ? `<div class="gallery">${imgs.map((u) => `<img src="${u}" alt="">`).join("")}</div>` : `<div class="muted">Nog geen foto's. Ze verschijnen hier zodra jullie foto-opdrachten doen.</div>`}
+      <h3 style="margin-top:12px">Budget</h3>
+      <div class="muted">Uitgegeven: ${euro(S.spent)} van ${euro(R.budgetPerTeam)}</div>
+      <button class="btn secondary" id="reset" style="margin-top:16px">Opnieuw beginnen (demo)</button>`;
+    $("#reset").addEventListener("click", () => {
+      if (!confirm("Alle voortgang van dit team wissen?")) return;
+      S = fresh(); save(); Object.keys(photos).forEach((k) => delete photos[k]);
+      nameInput.value = ""; $("#go").disabled = true; show("start");
+    });
+  }
+
+  // ---- nav ----
+  document.querySelectorAll(".tabbar button").forEach((b) => b.addEventListener("click", () => show(b.dataset.tab)));
+  $("#back").addEventListener("click", () => show("main"));
+
+  if (S.team) { initMap(); show("main"); }
+})();
+</script>
+</body>
+</html>
